@@ -8,6 +8,9 @@
 
 #include <iostream>
 #include <cstring>
+#include <queue>
+#include <set>
+
 
 Simulation::Simulation(const std::string& blueprint_string) {
 	get_resource_id("constant");
@@ -30,16 +33,108 @@ Simulation::Simulation(const std::string& blueprint_string) {
 		else if (name == "arithmetic-combinator") {
 			entities[eid] = std::make_unique<ArithmeticCombinator>(*this, e);
 		}
+		else if (name == "decider-combinator") {
+			entities[eid] = std::make_unique<DeciderCombinator>(*this, e);
+		}
 		else {
 			entities[eid] = std::make_unique<Entity>(*this, e);
 		}
 	}
+
+	recalculate_networks();
+
 	for (size_t i = 0; i < entities.size(); i++) {
 		if (entities[i]) {
 			std::cout << i << ":\t" << *entities[i] << std::endl;
+			for (const auto& kv: entities[i]->edges) {
+				for (const auto& to: kv.second) {
+					std::cout << "\t" << kv.first.first << " --";
+					std::cout << color_to_string(kv.first.second) << "--> ";
+					std::cout << to.first << ", " << to.second;
+					std::cout << std::endl;
+				}
+			}
+		}
+	}
+
+	for (size_t i = 0; i < network_to_endpoints.size(); i++) {
+		if (network_to_endpoints[i].size() <= 1) {
+			continue;
+		}
+		std::cout << "Network #" << i << " - " 
+			<< color_to_string(std::get<2>(network_to_endpoints[i][0])) 
+			<< ":" << std::endl;
+		for (const auto& ep: network_to_endpoints[i]) {
+			std::cout << "    " << std::get<0>(ep) << "-" << std::get<1>(ep) << std::endl;
 		}
 	}
 }
+
+void Simulation::recalculate_networks() {
+	for (int cid = MIN_CID; cid < MAX_CID; cid++) {
+		for (int col = MIN_COLOR; col < MAX_COLOR; col++) {
+			endpoint_to_network[cid][col].clear();
+			endpoint_to_network[cid][col].resize(entities.size());
+		}
+	}
+	network_to_endpoints.clear();
+
+	std::set<std::tuple<size_t, int, Color>> visited;
+	for (size_t eid = 0; eid < entities.size(); eid++) {
+		if (!entities[eid]) { continue; }
+		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
+			for (int col = MIN_COLOR; col < MAX_COLOR; col++) {
+				std::tuple<size_t, int, Color> endpoint(eid, cid, Color(col));
+				if (visited.count(endpoint)) {
+					continue;
+				}
+				size_t nid = network_to_endpoints.size();
+				std::queue<std::tuple<size_t, int, Color>> q;
+				q.push(endpoint);
+				visited.insert(endpoint);
+				network_to_endpoints.resize(nid + 1);
+				while (!q.empty()) {
+					auto cur = q.front();
+					size_t eid_cur;
+					int cid_cur;
+					Color col_cur;
+					std::tie(eid_cur, cid_cur, col_cur) = cur;
+					q.pop();
+					network_to_endpoints.back().push_back(cur);
+					endpoint_to_network[cid_cur][col_cur][eid_cur] = nid;
+					for (const auto& to: entities[eid_cur]->edges[{cid_cur, Color(col)}]) {
+						size_t eid_to;
+						int cid_to;
+						std::tie(eid_to, cid_to) = to;
+						std::tuple<size_t, int, Color> endpoint_to(
+								eid_to, cid_to, Color(col));
+
+						if (visited.count(endpoint_to)) {
+							continue;
+						}
+						visited.insert(endpoint_to);
+						q.push(endpoint_to);
+					}
+				}
+			}
+		}
+	}
+}
+
+size_t Simulation::get_network(size_t eid, int cid, Color color) {
+	if (cid < MIN_CID || cid >= MAX_CID) {
+		throw std::runtime_error("Connection id out of range");
+	}
+	if (color >= MAX_COLOR) {
+		throw std::runtime_error("Color enum out of range");
+	}
+	const auto& vec = endpoint_to_network[cid][color];
+	return vec.at(eid);
+}
+
+
+// std::vector<size_t> endpoint_to_network[MAX_CID][MAXCOLOR];
+// std::vector<std::tuple<size_t, int, Color>> network_to_endpoint;
 
 Simulation::~Simulation() {}
 
@@ -52,6 +147,20 @@ resource_t Simulation::get_resource_id(std::string name) {
 	resource_names.push_back(name);
 	std::cout << id << " : " << name << std::endl;
 	return id;
+}
+
+Simulation::Color Simulation::string_to_color(std::string str) {
+	if (str == "red") { return RED; }
+	if (str == "green") { return GREEN; }
+	throw std::runtime_error("Bad color: " + str);
+}
+
+std::string Simulation::color_to_string(Color color) {
+	switch (color) {
+	case RED: return "red";
+	case GREEN: return "green";
+	default: throw std::runtime_error("Invalid color enum");
+	}
 }
 
 std::string Simulation::get_resource_name(resource_t id) {
