@@ -251,6 +251,7 @@ def benchmark():
     print "Tick %d: \tlamps: %s" % (i, " ".join(lampstates).replace("0", ".").replace("1", "#"))
 
     t1 = time.time()
+    print "#entities:", len(state["entities"])
     print "UPS:", TICKS / (t1 - t0)
 
 
