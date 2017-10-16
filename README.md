@@ -1,7 +1,9 @@
 # factorio-combinators
 Python script reading blueprints and simulating circuits.
 
-Benchmark output for reasonable sized blueprint:
+![Blueprint image](https://github.com/akrasuski1/factorio-combinators/blob/master/factorio-blueprint.png)
+
+Benchmark output for reasonable sized blueprint shown above (it's an 8-value bidirectional shift register, a.k.a. stack):
 ```
 Tick 0: 	lamps: . . . . . . . .
 Tick 1: 	lamps: # # # # # # # #
