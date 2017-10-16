@@ -3,6 +3,7 @@ import json
 
 COLORS = ["red", "green"]
 
+
 def parse_blueprint(bpstr):
     return json.loads(bpstr[1:].decode("base64").decode("zlib"))
 
@@ -141,25 +142,43 @@ def combine_input(network_state, point_to_network, eid):
         for color in COLORS])
 
 
+def is_fulfilled(cond, signals):
+    oper = cond["comparator"]
+    first = cond["first_signal"]["name"]
+    if "constant" in cond:
+        second = cond["constant"]
+    else:
+        second = signals.get(cond["second_signal"]["name"], 0)
+
+    if first in ["signal-each", "signal-anything"]:
+        for sig in signals:
+            if apply_operation(oper, signals.get(sig, 0), second):
+                return True
+        return False
+    elif first == "signal-everything":
+        for sig in signals:
+            if not apply_operation(oper, signals.get(sig, 0), second):
+                return False
+        return True
+
+    return apply_operation(oper, signals.get(first, 0), second)
+
 
 def update(entity, point_to_network, network_state, future_state):
     eid = str(entity["entity_number"])
     name = entity["name"]
+
+    to_add = {}
+    endpoint = "1"
     if name == "constant-combinator":
+        endpoint = "1"
         for filt in entity["control_behavior"]["filters"]:
-            for color in COLORS:
-                nid = get_network(point_to_network, eid, "1", color)
-                add(future_state, nid, filt["signal"]["name"], filt["count"])
-    elif name in ["arithmetic-combinator", "decider-combinator"]:
+            to_add[filt["signal"]["name"]] = filt["count"]
+    elif name == "arithmetic-combinator":
+        endpoint = "2"
         sum = combine_input(network_state, point_to_network, eid)
-        if name == "arithmetic-combinator":
-            cond = entity["control_behavior"]["arithmetic_conditions"]
-            oper = cond["operation"]
-            output_copy = False
-        else:
-            cond = entity["control_behavior"]["decider_conditions"]
-            oper = cond["comparator"]
-            output_copy = cond["copy_count_from_input"]
+        cond = entity["control_behavior"]["arithmetic_conditions"]
+        oper = cond["operation"]
 
         first = cond["first_signal"]["name"]
         if "constant" in cond:
@@ -175,44 +194,50 @@ def update(entity, point_to_network, network_state, future_state):
             siglist = [first]
 
         for sig in siglist:
-            val = apply_operation(oper, sum.get(sig, 0), second)
             if output_signal == "signal-each":
                 out = sig
             else:
                 out = output_signal
 
-            if output_copy and val != 0:
-                val = sum.get(out, 0)
+            if out not in to_add:
+                to_add[out] = 0
 
-            for color in COLORS:
-                nid = get_network(point_to_network, eid, "2", color)
-                add(future_state, nid, out, val)
+            to_add[out] += apply_operation(oper, sum.get(sig, 0), second)
+    elif name == "decider-combinator":
+        endpoint = "2"
+        signals = combine_input(network_state, point_to_network, eid)
+        cond = entity["control_behavior"]["decider_conditions"]
+        if is_fulfilled(cond, signals):
+            output_copy = cond["copy_count_from_input"]
+            output_signal = cond["output_signal"]["name"]
+            if output_signal == "signal-everything":
+                to_add = signals
+            elif output_signal == "signal-each":
+                oper = cond["comparator"]
+                if "constant" in cond:
+                    second = cond["constant"]
+                else:
+                    second = signals.get(cond["second_signal"]["name"], 0)
+                for sig in signals:
+                    if apply_operation(oper, signals.get(sig, 0), second):
+                        to_add[sig] = signals.get(sig, 0)
+            else:
+                to_add = {output_signal: signals.get(output_signal, 0)}
 
-
-def is_fulfilled(cond, signals):
-    oper = cond["comparator"]
-    first = cond["first_signal"]["name"]
-    if "constant" in cond:
-        second = cond["constant"]
-    else:
-        second = signals.get(cond["second_signal"]["name"], 0)
-
-    if first == "signal-each":
-        siglist = list(signals)
-    else:
-        siglist = [first]
-
-    for sig in siglist:
-        val = apply_operation(oper, signals.get(sig, 0), second)
-        return val
-
+            if not output_copy:
+                for sig in to_add:
+                    to_add[sig] = 1
+            
+    for sig in to_add:
+        for color in COLORS:
+            nid = get_network(point_to_network, eid, endpoint, color)
+            add(future_state, nid, sig, to_add[sig])
 
 
 def query_enabled(state, eid):
     e = state["entities"][eid]
     signals = combine_input(state["network_state"], state["point_to_network"], eid)
     return is_fulfilled(e["control_behavior"]["circuit_condition"], signals)
-
 
 
 def tick(state):
