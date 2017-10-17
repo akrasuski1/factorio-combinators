@@ -4,7 +4,7 @@ Python script reading blueprints and simulating circuits.
 ![Blueprint image](https://github.com/akrasuski1/factorio-combinators/blob/master/factorio-blueprint.png)
 
 This code was first written in Python, with around 2600 UPS for the blueprint
-shown above (it's an 8-value bidirectional shift register, a.k.a. stack).
+shown above (it's an 8-value bidirectional shift register, somewhat similar to stack).
 
 After rewriting it to C++ and optimizing various things, we reach about 
 160 000 UPS at the same blueprint.
