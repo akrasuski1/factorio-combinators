@@ -30,6 +30,7 @@ public:
 	std::map<std::pair<int, Simulation::Color>,
 	   	std::vector<std::pair<size_t, int>>> edges;
 	std::string name;
+	signal_t outputs[Simulation::MAX_CID];
 	bool is_fulfilled();
 protected:
 	Simulation& simulation;

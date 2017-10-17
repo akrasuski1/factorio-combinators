@@ -82,11 +82,9 @@ bool ConstantCombinator::is_input(int) {
 }
 
 void ConstantCombinator::update() {
+	outputs[1].clear();
 	for (const auto& kv: constants) {
-		for (int col = Simulation::MIN_COLOR; col < Simulation::MAX_COLOR; col++) {
-			size_t nid = simulation.get_network(eid, 1, Simulation::Color(col));
-			simulation.new_network_signal[nid][kv.first] += kv.second;
-		}
+		outputs[1][kv.first] += kv.second;
 	}
 }
 
@@ -196,6 +194,8 @@ bool ArithmeticCombinator::is_input(int cid) {
 }
 
 void ArithmeticCombinator::update() {
+	outputs[2].clear();
+
 	if (left == Simulation::NONE) { return; }
 	if (right == Simulation::NONE) { return; }
 	if (output == Simulation::NONE) { return; }
@@ -216,23 +216,16 @@ void ArithmeticCombinator::update() {
 	if (left == Simulation::EACH) {
 		for (const auto& kv: in) {
 			int32_t result = operation(kv.second, val2);
-			for (int col = Simulation::MIN_COLOR; col < Simulation::MAX_COLOR; col++) {
-				size_t nid = simulation.get_network(eid, 2, Simulation::Color(col));
-				if (output == Simulation::EACH) {
-					simulation.new_network_signal[nid][kv.first] += result;
-				}
-				else {
-					simulation.new_network_signal[nid][output] += result;
-				}
+			if (output == Simulation::EACH) {
+				outputs[2][kv.first] += result;
+			}
+			else {
+				outputs[2][output] += result;
 			}
 		}
 	}
 	else {
-		int32_t result = operation(in[left], val2);
-		for (int col = Simulation::MIN_COLOR; col < Simulation::MAX_COLOR; col++) {
-			size_t nid = simulation.get_network(eid, 2, Simulation::Color(col));
-			simulation.new_network_signal[nid][output] += result;
-		}
+		outputs[2][output] += operation(in[left], val2);
 	}
 }
 
@@ -369,9 +362,9 @@ bool DeciderCombinator::is_input(int cid) {
 }
 
 void DeciderCombinator::update() {
-	if (output == Simulation::NONE) { return; }
+	outputs[2].clear();
 
-	std::cout << "Decider " << eid << std::endl;
+	if (output == Simulation::NONE) { return; }
 
 	signal_t in = combine_signals(
 		simulation.network_to_signal[
@@ -383,43 +376,36 @@ void DeciderCombinator::update() {
 	if (decider.left == Simulation::EACH) {
 		for (const auto& kv: in) {
 			if (decider.is_fulfilled(in, kv.first)) {
-				for (int col = Simulation::MIN_COLOR; col < Simulation::MAX_COLOR; col++) {
-					size_t nid = simulation.get_network(eid, 2, Simulation::Color(col));
-					int32_t result = 1;
-					if (copy) {
-						result = kv.second;
-					}
-					if (output == Simulation::EACH) {
-						simulation.new_network_signal[nid][kv.first] += result;
-					}
-					else {
-						simulation.new_network_signal[nid][output] += result;
-					}
+				int32_t result = 1;
+				if (copy) {
+					result = kv.second;
+				}
+				if (output == Simulation::EACH) {
+					outputs[2][kv.first] += result;
+				}
+				else {
+					outputs[2][output] += result;
 				}
 			}
 		}
 	}
 	else {
-		std::cout << "  condition: " << decider.is_fulfilled(in) << std::endl;
 		if (decider.is_fulfilled(in)) {
-			for (int col = Simulation::MIN_COLOR; col < Simulation::MAX_COLOR; col++) {
-				size_t nid = simulation.get_network(eid, 2, Simulation::Color(col));
-				if (output == Simulation::EVERY) {
-					for (const auto& kv: in) {
-						int32_t result = 1;
-						if (copy) {
-							result = kv.second;
-						}
-						simulation.new_network_signal[nid][kv.first] += result;
-					}
-				}
-				else {
+			if (output == Simulation::EVERY) {
+				for (const auto& kv: in) {
 					int32_t result = 1;
 					if (copy) {
-						result = in[output];
+						result = kv.second;
 					}
-					simulation.new_network_signal[nid][output] += result;
+					outputs[2][kv.first] += result;
 				}
+			}
+			else {
+				int32_t result = 1;
+				if (copy) {
+					result = in[output];
+				}
+				outputs[2][output] += result;
 			}
 		}
 	}

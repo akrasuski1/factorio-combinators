@@ -33,10 +33,11 @@ public:
 	static std::string color_to_string(Color col);
 
 	std::vector<signal_t> network_to_signal;
-	std::unordered_map<size_t, signal_t> new_network_signal;
+	std::unordered_map<size_t, signal_t> network_diff;
 
 	void tick();
 private:
+	bool first_tick;
 	json11::Json read_blueprint(const std::string& b64);
 
 	typedef uint8_t byte;
@@ -49,7 +50,8 @@ private:
 	std::vector<size_t> endpoint_to_network[MAX_CID][MAX_COLOR];
 	std::vector<std::vector<
 		std::tuple<size_t, int, Color>>> network_to_endpoints;
-	std::set<size_t> triggered_entities;
+
+	std::set<size_t> triggered_networks;
 };
 
 #endif

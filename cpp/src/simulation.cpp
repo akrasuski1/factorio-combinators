@@ -13,7 +13,9 @@
 #include <unordered_set>
 
 
-Simulation::Simulation(const std::string& blueprint_string) {
+Simulation::Simulation(const std::string& blueprint_string):
+	first_tick(true) {
+
 	get_resource_id("constant");
 	get_resource_id("signal-each");
 	get_resource_id("signal-anything");
@@ -40,11 +42,12 @@ Simulation::Simulation(const std::string& blueprint_string) {
 		else {
 			entities[eid] = std::make_unique<Entity>(*this, e);
 		}
-
-		triggered_entities.insert(eid);
 	}
 
 	recalculate_networks();
+	for (size_t nid = 0; nid < network_to_signal.size(); nid++) {
+		triggered_networks.insert(nid);
+	}
 
 	for (size_t i = 0; i < entities.size(); i++) {
 		if (entities[i]) {
@@ -202,65 +205,67 @@ json11::Json Simulation::read_blueprint(const std::string& b64) {
 }
 
 void Simulation::tick() {
-	new_network_signal.clear();
-
-	std::unordered_set<size_t> triggered_networks;
-	for (auto eid: triggered_entities) {
-		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
-			for (int col = 0; col < MAX_COLOR; col++) {
-				size_t nid = endpoint_to_network[cid][col][eid];
-				triggered_networks.insert(nid);
+	std::set<size_t> triggered_entities;
+	for (const auto& nid: triggered_networks) {
+		for (auto endpoint: network_to_endpoints[nid]) {
+			size_t eid = std::get<0>(endpoint);
+			int cid = std::get<1>(endpoint);
+			if (entities[eid]->is_input(cid)) {
+				triggered_entities.insert(eid);
 			}
 		}
 	}
 
-	for (auto nid: triggered_networks) {
-		for (auto endpoint: network_to_endpoints[nid]) {
-			size_t eid = std::get<0>(endpoint);
-			triggered_entities.insert(eid);
+	if (first_tick) {
+		first_tick = false;
+		for (size_t eid = 0; eid < entities.size(); eid++) {
+			if (entities[eid]) {
+				triggered_entities.insert(eid);
+			}
 		}
 	}
 
+	network_diff.clear();
 	for (auto eid: triggered_entities) {
-		std::cout << "Updating entity " << eid << std::endl;
 		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
 			for (int col = MIN_COLOR; col < MAX_COLOR; col++) {
-				size_t nid = endpoint_to_network[cid][col][eid];
-				new_network_signal[nid]; // Set to 0 if not there.
+				size_t nid = get_network(eid, cid, Color(col));
+				signal_inplace_subtract(network_diff[nid], entities[eid]->outputs[cid]);
 			}
 		}
 		entities[eid]->update();
+		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
+			for (int col = MIN_COLOR; col < MAX_COLOR; col++) {
+				size_t nid = get_network(eid, cid, Color(col));
+				signal_inplace_add(network_diff[nid], entities[eid]->outputs[cid]);
+			}
+		}
 	}
 
-	triggered_entities.clear();
-	for (const auto& nid_signal: new_network_signal) {
-		bool diff = false;
+	triggered_networks.clear();
+	for (const auto& nid_diff: network_diff) {
+		bool any = false;
+		size_t nid = nid_diff.first;
+		signal_t& signal = network_to_signal[nid];
 		std::vector<resource_t> todel;
-		for (const auto& sig_val: nid_signal.second) {
-			if (sig_val.second != network_to_signal[nid_signal.first][sig_val.first]) {
-				diff = true;
-			}
-			if (sig_val.second == 0) {
-				todel.push_back(sig_val.first);
-			}
-			else {
-				network_to_signal[nid_signal.first][sig_val.first] = sig_val.second;
-			}
-		}
-		for (auto res: todel) {
-			network_to_signal[nid_signal.first].erase(res);
-		}
-		if (diff) {
-			for (auto tup: network_to_endpoints[nid_signal.first]) {
-				size_t eid = std::get<0>(tup);
-				int cid = std::get<1>(tup);
-				if (entities[eid]->is_input(cid)) {
-					triggered_entities.insert(eid);
+		for (auto res_val: nid_diff.second) {
+			if (res_val.second != 0) {
+				any = 1;
+				signal[res_val.first] += res_val.second;
+				if (signal[res_val.first] == 0) {
+					todel.push_back(res_val.first);
 				}
 			}
 		}
+		for (auto res: todel) {
+			signal.erase(res);
+		}
+		if (any) {
+			triggered_networks.insert(nid);
+		}
 	}
 
+	/*
 	for (size_t i = 0; i < network_to_signal.size(); i++) {
 		if (network_to_signal[i].size() == 0) {
 			continue;
@@ -271,6 +276,7 @@ void Simulation::tick() {
 				<< ": " << sig_val.second << std::endl;
 		}
 	}
+	*/
 
 	for (const auto& e: entities) {
 		if (e && e->name == "small-lamp") {

@@ -11,5 +11,7 @@ typedef std::unordered_map<resource_t, int32_t> signal_t;
 class Simulation;
 void print_signal(std::ostream& os, const signal_t& sig, Simulation& simulation);
 signal_t combine_signals(const signal_t& a, const signal_t& b);
+void signal_inplace_subtract(signal_t& a, const signal_t& b);
+void signal_inplace_add(signal_t& a, const signal_t& b);
 
 #endif

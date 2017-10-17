@@ -29,3 +29,15 @@ signal_t combine_signals(const signal_t& a, const signal_t& b) {
 	}
 	return out;
 }
+
+void signal_inplace_subtract(signal_t& a, const signal_t& b) {
+	for (auto kv: b) {
+		a[kv.first] -= kv.second;
+	}
+}
+
+void signal_inplace_add(signal_t& a, const signal_t& b) {
+	for (auto kv: b) {
+		a[kv.first] += kv.second;
+	}
+}
