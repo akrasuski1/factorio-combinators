@@ -7,8 +7,7 @@
 
 void benchmark() {
 	std::string blueprint_string;
-	std::ifstream ifs("../blueprints/shiftregister.bp");
-	ifs >> blueprint_string;
+	std::cin >> blueprint_string;
 	Simulation simulation(blueprint_string);
 	auto t0 = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < 50000; i++) {
