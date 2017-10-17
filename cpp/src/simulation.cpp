@@ -10,6 +10,7 @@
 #include <cstring>
 #include <queue>
 #include <set>
+#include <unordered_set>
 
 
 Simulation::Simulation(const std::string& blueprint_string) {
@@ -39,6 +40,8 @@ Simulation::Simulation(const std::string& blueprint_string) {
 		else {
 			entities[eid] = std::make_unique<Entity>(*this, e);
 		}
+
+		triggered_entities.insert(eid);
 	}
 
 	recalculate_networks();
@@ -119,6 +122,8 @@ void Simulation::recalculate_networks() {
 			}
 		}
 	}
+
+	network_to_signal.resize(network_to_endpoints.size());
 }
 
 size_t Simulation::get_network(size_t eid, int cid, Color color) {
@@ -194,4 +199,83 @@ json11::Json Simulation::read_blueprint(const std::string& b64) {
 	std::string err;
 	return json11::Json::parse(
 		std::string(result.begin(), result.end()), err);
+}
+
+void Simulation::tick() {
+	new_network_signal.clear();
+
+	std::unordered_set<size_t> triggered_networks;
+	for (auto eid: triggered_entities) {
+		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
+			for (int col = 0; col < MAX_COLOR; col++) {
+				size_t nid = endpoint_to_network[cid][col][eid];
+				triggered_networks.insert(nid);
+			}
+		}
+	}
+
+	for (auto nid: triggered_networks) {
+		for (auto endpoint: network_to_endpoints[nid]) {
+			size_t eid = std::get<0>(endpoint);
+			triggered_entities.insert(eid);
+		}
+	}
+
+	for (auto eid: triggered_entities) {
+		std::cout << "Updating entity " << eid << std::endl;
+		for (int cid = MIN_CID; cid < MAX_CID; cid++) {
+			for (int col = MIN_COLOR; col < MAX_COLOR; col++) {
+				size_t nid = endpoint_to_network[cid][col][eid];
+				new_network_signal[nid]; // Set to 0 if not there.
+			}
+		}
+		entities[eid]->update();
+	}
+
+	triggered_entities.clear();
+	for (const auto& nid_signal: new_network_signal) {
+		bool diff = false;
+		std::vector<resource_t> todel;
+		for (const auto& sig_val: nid_signal.second) {
+			if (sig_val.second != network_to_signal[nid_signal.first][sig_val.first]) {
+				diff = true;
+			}
+			if (sig_val.second == 0) {
+				todel.push_back(sig_val.first);
+			}
+			else {
+				network_to_signal[nid_signal.first][sig_val.first] = sig_val.second;
+			}
+		}
+		for (auto res: todel) {
+			network_to_signal[nid_signal.first].erase(res);
+		}
+		if (diff) {
+			for (auto tup: network_to_endpoints[nid_signal.first]) {
+				size_t eid = std::get<0>(tup);
+				int cid = std::get<1>(tup);
+				if (entities[eid]->is_input(cid)) {
+					triggered_entities.insert(eid);
+				}
+			}
+		}
+	}
+
+	for (size_t i = 0; i < network_to_signal.size(); i++) {
+		if (network_to_signal[i].size() == 0) {
+			continue;
+		}
+		std::cout << "Network #" << i << std::endl;
+		for (const auto& sig_val: network_to_signal[i]) {
+			std::cout << "  " << get_resource_name(sig_val.first) 
+				<< ": " << sig_val.second << std::endl;
+		}
+	}
+
+	for (const auto& e: entities) {
+		if (e && e->name == "small-lamp") {
+			std::cout << (e->is_fulfilled() ? "# " : ". ");
+		}
+	}
+	std::cout << std::endl;
 }

@@ -12,8 +12,9 @@ class Decider {
 public:
 	Decider(Simulation& simulation, json11::Json json);
 	virtual void print(std::ostream& os);
-private:
+	bool is_fulfilled(signal_t signal, resource_t res = Simulation::NONE);
 	resource_t left, right;
+private:
 	int32_t constant;
 	std::function<bool(int32_t, int32_t)> comparator;
 	Simulation& simulation;
@@ -23,13 +24,16 @@ private:
 class Entity {
 public:
 	Entity(Simulation& simulation, json11::Json json);
-	virtual void update();
 	virtual void print(std::ostream& os);
+	virtual void update();
+	virtual bool is_input(int cid);
 	std::map<std::pair<int, Simulation::Color>,
 	   	std::vector<std::pair<size_t, int>>> edges;
+	std::string name;
+	bool is_fulfilled();
 protected:
 	Simulation& simulation;
-	std::string name;
+	size_t eid;
 	std::unique_ptr<Decider> decider;
 };
 
@@ -40,6 +44,8 @@ class ConstantCombinator: public Entity {
 public:
 	ConstantCombinator(Simulation& simulation, json11::Json json);
 	virtual void print(std::ostream& os);
+	virtual void update();
+	virtual bool is_input(int cid);
 private:
 	signal_t constants;
 };
@@ -49,6 +55,8 @@ class ArithmeticCombinator: public Entity {
 public:
 	ArithmeticCombinator(Simulation& simulation, json11::Json json);
 	virtual void print(std::ostream& os);
+	virtual void update();
+	virtual bool is_input(int cid);
 private:
 	resource_t left, right, output;
 	int32_t constant;
@@ -60,6 +68,8 @@ class DeciderCombinator: public Entity {
 public:
 	DeciderCombinator(Simulation& simulation, json11::Json json);
 	virtual void print(std::ostream& os);
+	virtual void update();
+	virtual bool is_input(int cid);
 private:
 	Decider decider;
 	bool copy;

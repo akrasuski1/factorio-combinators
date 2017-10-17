@@ -5,6 +5,8 @@
 
 #include "lib/json11.hpp"
 
+#include <set>
+
 
 class Entity;
 class Simulation {
@@ -29,6 +31,11 @@ public:
 
 	static Color string_to_color(std::string str);
 	static std::string color_to_string(Color col);
+
+	std::vector<signal_t> network_to_signal;
+	std::unordered_map<size_t, signal_t> new_network_signal;
+
+	void tick();
 private:
 	json11::Json read_blueprint(const std::string& b64);
 
@@ -42,6 +49,7 @@ private:
 	std::vector<size_t> endpoint_to_network[MAX_CID][MAX_COLOR];
 	std::vector<std::vector<
 		std::tuple<size_t, int, Color>>> network_to_endpoints;
+	std::set<size_t> triggered_entities;
 };
 
 #endif

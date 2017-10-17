@@ -12,3 +12,20 @@ void print_signal(std::ostream& os, const signal_t& sig, Simulation& simulation)
 	}
 	os << "}";
 }
+
+signal_t combine_signals(const signal_t& a, const signal_t& b) {
+	signal_t out = a;
+	for (const auto& kv: b) {
+		out[kv.first] += kv.second;
+	}
+	std::vector<resource_t> todel;
+	for (const auto& kv: out) {
+		if (kv.second == 0){ 
+			todel.push_back(kv.first);
+		}
+	}
+	for (const auto res: todel) {
+		out.erase(res);
+	}
+	return out;
+}
