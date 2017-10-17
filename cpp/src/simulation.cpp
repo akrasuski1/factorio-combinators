@@ -11,10 +11,11 @@
 #include <queue>
 #include <set>
 #include <unordered_set>
+#include <algorithm>
 
 
 Simulation::Simulation(const std::string& blueprint_string):
-	first_tick(true) {
+	tick_number(0) {
 
 	get_resource_id("constant");
 	get_resource_id("signal-each");
@@ -216,8 +217,7 @@ void Simulation::tick() {
 		}
 	}
 
-	if (first_tick) {
-		first_tick = false;
+	if (tick_number == 0) {
 		for (size_t eid = 0; eid < entities.size(); eid++) {
 			if (entities[eid]) {
 				triggered_entities.insert(eid);
@@ -278,10 +278,22 @@ void Simulation::tick() {
 	}
 	*/
 
+	std::vector<std::pair<double, bool>> lamp_x_state;
+	static std::vector<std::pair<double, bool>> old_state;
 	for (const auto& e: entities) {
 		if (e && e->name == "small-lamp") {
-			std::cout << (e->is_fulfilled() ? "# " : ". ");
+			lamp_x_state.push_back({e->x, e->is_fulfilled()});
 		}
 	}
-	std::cout << std::endl;
+	std::sort(lamp_x_state.begin(), lamp_x_state.end());
+	if (old_state != lamp_x_state || tick_number == 49999) {
+		std::cout << "Tick " << (tick_number + 1) << ": \tlamps: ";
+		for (const auto& xs: lamp_x_state) {
+			std::cout << (xs.second ? "# " : ". ");
+		}
+		std::cout << std::endl;
+		old_state = lamp_x_state;
+	}
+
+	tick_number++;
 }

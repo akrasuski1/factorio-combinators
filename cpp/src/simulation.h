@@ -37,7 +37,7 @@ public:
 
 	void tick();
 private:
-	bool first_tick;
+	size_t tick_number;
 	json11::Json read_blueprint(const std::string& b64);
 
 	typedef uint8_t byte;

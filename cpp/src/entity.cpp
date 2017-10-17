@@ -10,6 +10,9 @@ Entity::Entity(Simulation& simulation, json11::Json json):
 
 	name = json["name"].string_value();
 	eid = json["entity_number"].number_value();
+	x = json["position"]["x"].number_value();
+	y = json["position"]["y"].number_value();
+	dir = json["direction"].number_value();
 	
 	for (const auto& kv: json["connections"].object_items()) {
 		int cid = std::stoi(kv.first);

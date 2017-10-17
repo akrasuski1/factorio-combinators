@@ -32,6 +32,8 @@ public:
 	std::string name;
 	signal_t outputs[Simulation::MAX_CID];
 	bool is_fulfilled();
+	double x, y;
+	int dir;
 protected:
 	Simulation& simulation;
 	size_t eid;
